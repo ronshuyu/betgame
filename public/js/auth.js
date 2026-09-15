@@ -53,11 +53,10 @@ async function signInWithGoogle() {
     const token  = await result.user.getIdToken();
 
     // Sync with backend — creates Firestore profile if first time
-    const res = await fetch('https://early-rabbits-report.loca.lt/api/auth/sync', {
+    const res = await fetch('https://betgame-tsm2.onrender.com/api/auth/sync', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ token }),
     });

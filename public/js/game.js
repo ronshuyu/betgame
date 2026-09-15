@@ -45,7 +45,7 @@ function connectSocket() {
   const socketToken = sessionStorage.getItem('betgame_token');
   if (!socketToken) { window.location.href = '/'; return; }
 
-  G.socket = io('https://early-rabbits-report.loca.lt', {
+  G.socket = io('https://betgame-tsm2.onrender.com', {
     auth: { token: socketToken },
     reconnection: true,
     reconnectionDelay: 1500,

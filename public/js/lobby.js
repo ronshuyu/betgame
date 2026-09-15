@@ -16,9 +16,7 @@ let playerProfile = null;
 
 async function loadPlayerProfile() {
   try {
-    const res = await fetch(`https://early-rabbits-report.loca.lt/api/player/${uid}`, {
-      headers: { 'Bypass-Tunnel-Reminder': 'true' }
-    });
+    const res = await fetch(`https://betgame-tsm2.onrender.com/api/player/${uid}`);
     if (!res.ok) throw new Error('Profile not found');
     playerProfile = await res.json();
     renderHUD(playerProfile);
@@ -118,11 +116,10 @@ async function doTopup() {
 
   try {
     const freshToken = await getFreshToken();
-    const res = await fetch('https://early-rabbits-report.loca.lt/api/player/topup', {
+    const res = await fetch('https://betgame-tsm2.onrender.com/api/player/topup', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        'Bypass-Tunnel-Reminder': 'true'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ token: freshToken }),
     });
