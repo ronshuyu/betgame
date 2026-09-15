@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BETGAME — Login</title>
+  <meta name="description" content="BETGAME — A fast-paced, real-time multiplayer card game. Sign in with Google to start playing." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ── Animated background ────────────────────────────── -->
+  <div class="hero-bg">
+    <div class="floating-cards" id="floating-cards-bg"></div>
+  </div>
+
+  <!-- ── Login card ─────────────────────────────────────── -->
+  <main class="login-page">
+    <div class="login-card">
+
+      <!-- Logo -->
+      <div class="login-logo">
+        <span class="logo-icon">🃏</span>
+        <div class="logo-title">BETGAME</div>
+        <div class="logo-tagline">High-Stakes Card Battles</div>
+      </div>
+
+      <!-- Feature highlights -->
+      <ul class="login-features">
+        <li><span class="feat-icon">🎯</span> Bet, raise, or fold against up to 11 opponents</li>
+        <li><span class="feat-icon">🏆</span> Win the pot with the best poker hand</li>
+        <li><span class="feat-icon">💰</span> Start with $500 — top up anytime</li>
+        <li><span class="feat-icon">⚡</span> Real-time multiplayer, 3 stake levels</li>
+      </ul>
+
+      <!-- Google sign-in -->
+      <button class="btn-google" id="google-signin-btn">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" />
+        Continue with Google
+      </button>
+
+      <!-- Loading state -->
+      <div class="login-loading hidden" id="login-loading">
+        Signing you in…
+      </div>
+
+      <div class="login-divider">— or —</div>
+
+      <!-- Auth error -->
+      <div id="auth-error" class="hidden" style="color:var(--danger); font-size:0.85rem; text-align:center; margin-bottom:0.5rem;"></div>
+
+      <p class="login-note">
+        By continuing you agree to play responsibly.<br/>
+        All credits are in-game only — no real money involved.
+      </p>
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ── Firebase SDK (compat) ──────────────────────────── -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="/js/auth.js"></script>
+
+  <!-- Floating card background -->
+  <script>
+    (function () {
+      const container = document.getElementById('floating-cards-bg');
+      const symbols = ['♠', '♥', '♦', '♣', 'A', 'K', 'Q', 'J', '10', '🃏'];
+      for (let i = 0; i < 24; i++) {
+        const el = document.createElement('div');
+        el.className = 'float-card';
+        el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+        el.style.cssText = `
+          left: ${Math.random() * 100}%;
+          top: ${Math.random() * 100}%;
+          animation-delay: ${(Math.random() * 6).toFixed(2)}s;
+          animation-duration: ${(5 + Math.random() * 6).toFixed(2)}s;
+          font-size: ${1.2 + Math.random() * 2.5}rem;
+        `;
+        container.appendChild(el);
+      }
+    })();
+  </script>
+</body>
+</html>

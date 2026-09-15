@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BETGAME — Play</title>
+  <meta name="description" content="BETGAME — Multiplayer card game lobby and table"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ══════════════════════════ TOP HUD ════════════════════════════ -->
+  <header class="hud">
+    <div class="hud-logo">🃏 BETGAME</div>
+    <div class="hud-spacer"></div>
+
+    <!-- Stats -->
+    <div class="hud-stats" id="hud-stats">
+      <div class="stat">🏆 <span class="wins" id="hud-wins">0</span> W</div>
+      <div class="stat">💀 <span class="losses" id="hud-losses">0</span> L</div>
+    </div>
+
+    <!-- Credits -->
+    <div class="hud-credits">
+      <span class="credits-icon">💰</span>
+      <span class="credits-val" id="hud-credits">500</span>
+    </div>
+
+    <!-- Player -->
+    <div id="hud-avatar-wrap">
+      <div class="hud-avatar-fallback" id="hud-avatar-fallback">?</div>
+    </div>
+    <div class="hud-name" id="hud-name">Player</div>
+
+    <!-- Actions -->
+    <button class="btn btn-outline btn-sm" id="topup-btn" title="Add $100 credits">💳 Top Up</button>
+    <button class="btn btn-outline btn-sm" id="leave-table-btn" style="display:none">← Leave</button>
+    <button class="btn btn-outline btn-sm" id="signout-btn">Sign Out</button>
+  </header>
+
+  <!-- ══════════════════════════ MAIN ═══════════════════════════════ -->
+  <main class="main-content">
+
+    <!-- ───────────────── LOBBY VIEW ───────────────── -->
+    <section id="lobby-view">
+      <div class="lobby-header">
+        <h1>Choose Your Table</h1>
+        <p>Select a stake level and join the action</p>
+      </div>
+
+      <div class="tables-grid" id="tables-grid">
+        <!-- Populated by lobby.js -->
+      </div>
+
+      <div class="lobby-actions">
+        <button class="btn btn-gold btn-lg" id="topup-lobby-btn">💳 Top Up Credits</button>
+      </div>
+    </section>
+
+    <!-- ───────────────── GAME TABLE VIEW ───────────────── -->
+    <section id="game-view" class="hidden">
+
+      <div class="table-arena">
+
+        <!-- Felt table -->
+        <div class="felt-table" id="felt-table">
+
+          <!-- Pot display -->
+          <div class="pot-display" id="pot-display">
+            <div class="pot-chips">🪙</div>
+            <div class="pot-label">Pot</div>
+            <div class="pot-amount" id="pot-amount">$0</div>
+          </div>
+
+          <!-- Player seats (injected by game.js) -->
+          <div id="seats-container"></div>
+
+        </div>
+
+        <!-- My hand (shown outside felt for better visibility) -->
+        <div id="my-hand-area"></div>
+
+        <!-- Action feed -->
+        <div class="action-feed" id="action-feed"></div>
+
+        <!-- Waiting room overlay bar -->
+        <div class="waiting-room" id="waiting-room">
+          <span class="waiting-text">
+            Waiting for players…
+            <strong id="waiting-count">0/2</strong> ready
+          </span>
+          <button class="btn btn-green" id="ready-btn">✓ Ready</button>
+        </div>
+
+      </div>
+
+      <!-- ── Action panel (betting controls) ── -->
+      <div class="action-panel" id="action-panel">
+        <div class="action-panel-info">
+          <div class="action-phase" id="action-phase">WAITING</div>
+          <div class="action-context" id="action-context">Waiting for the round to start…</div>
+        </div>
+
+        <!-- Turn timer (hidden when not your turn) -->
+        <div class="turn-timer hidden" id="turn-timer">
+          <div class="timer-ring" id="timer-ring" style="--progress:100%">
+            <span id="timer-val">30</span>
+          </div>
+        </div>
+
+        <!-- Betting buttons (hidden until your turn) -->
+        <div class="action-buttons hidden" id="action-buttons">
+          <button class="btn btn-red" id="btn-fold">Fold</button>
+          <button class="btn btn-outline" id="btn-check" style="display:none">Check</button>
+          <button class="btn btn-outline" id="btn-call">Call $<span id="call-amount">0</span></button>
+          <div class="raise-input-wrap" id="raise-wrap" style="display:none">
+            <span style="color:var(--text-muted);font-size:0.85rem">$</span>
+            <input type="number" id="raise-amount-input" min="5" step="5" placeholder="0"/>
+          </div>
+          <button class="btn btn-gold" id="btn-raise">Raise</button>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════ OVERLAYS ════════════════════════════ -->
+
+<!-- Countdown overlay -->
+<div class="overlay hidden" id="countdown-overlay">
+  <div class="countdown-display" id="countdown-number">5</div>
+</div>
+
+<!-- Winner overlay -->
+<div class="overlay hidden" id="winner-overlay">
+  <div class="winner-card" id="winner-card">
+    <!-- Populated by game.js -->
+  </div>
+</div>
+
+<!-- Top-up modal -->
+<div class="modal-backdrop hidden" id="topup-modal">
+  <div class="modal-box">
+    <div class="modal-title">💳 Top Up Credits</div>
+    <div class="modal-desc" id="topup-modal-desc">
+      Add <strong>$100</strong> to your account. You can top up up to <strong>3 times per day</strong>.
+    </div>
+    <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+      <button class="btn btn-outline" id="topup-cancel">Cancel</button>
+      <button class="btn btn-gold" id="topup-confirm">Add $100 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ══════════════════════════ SCRIPTS ═════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+<script src="/js/auth.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/js/lobby.js"></script>
+<script src="/js/game.js"></script>
+
+</body>
+</html>
