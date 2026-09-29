@@ -689,11 +689,46 @@ input, select { font-family: inherit; }
 
 .seat-avatar-wrap {
   position: relative;
-  width: 52px; height: 52px;
+  width: 76px; height: 76px;
+}
+
+.camera-controls {
+  position: absolute;
+  top: 0.75rem;
+  right: 1rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  min-height: 36px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+#mic-status {
+  margin-left: 0.3rem;
+}
+
+.seat-camera {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.15);
+  object-fit: cover;
+  background: #101a14;
+  visibility: hidden;
+}
+
+.seat-camera.is-live {
+  visibility: visible;
 }
 
 .seat-avatar {
-  width: 52px; height: 52px;
+  width: 76px; height: 76px;
   border-radius: 50%;
   border: 3px solid rgba(255,255,255,0.15);
   object-fit: cover;
@@ -702,7 +737,7 @@ input, select { font-family: inherit; }
 }
 
 .seat-avatar-fallback {
-  width: 52px; height: 52px;
+  width: 76px; height: 76px;
   border-radius: 50%;
   border: 3px solid rgba(255,255,255,0.15);
   background: linear-gradient(135deg, var(--felt-dark), var(--bg-card));
@@ -715,6 +750,7 @@ input, select { font-family: inherit; }
 }
 
 .seat.is-turn .seat-avatar,
+.seat.is-turn .seat-camera,
 .seat.is-turn .seat-avatar-fallback {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(240,192,64,0.4);
@@ -722,18 +758,21 @@ input, select { font-family: inherit; }
 }
 
 .seat.is-self .seat-avatar,
+.seat.is-self .seat-camera,
 .seat.is-self .seat-avatar-fallback {
   border-color: #3498db;
   box-shadow: 0 0 0 2px rgba(52,152,219,0.35);
 }
 
 .seat.folded .seat-avatar,
+.seat.folded .seat-camera,
 .seat.folded .seat-avatar-fallback {
   opacity: 0.4;
   filter: grayscale(0.8);
 }
 
 .seat.winner .seat-avatar,
+.seat.winner .seat-camera,
 .seat.winner .seat-avatar-fallback {
   border-color: var(--gold);
   animation: winnerBurst 0.8s ease forwards;
@@ -742,6 +781,7 @@ input, select { font-family: inherit; }
 .seat-status-dot {
   position: absolute;
   bottom: 0; right: 0;
+  z-index: 2;
   width: 13px; height: 13px;
   border-radius: 50%;
   background: var(--text-muted);

@@ -171,6 +171,22 @@ io.on('connection', (socket) => {
     if (tableId) gm.handlePlayerAction(tableId, socket.uid, action, amount);
   });
 
+  socket.on('camera:state', ({ enabled }) => {
+    gm.setCameraState(socket.uid, enabled);
+  });
+
+  socket.on('mic:state', ({ enabled }) => {
+    gm.setMicState(socket.uid, enabled);
+  });
+
+  socket.on('camera:signal', ({ toUid, signal }) => {
+    const tableId = gm.playerTableMap[socket.uid];
+    const table = tableId && gm.tables[tableId];
+    const recipient = table?.players.find(player => player.uid === toUid);
+    if (!recipient || !signal || !['description', 'candidate'].includes(signal.type)) return;
+    io.to(recipient.socketId).emit('camera:signal', { fromUid: socket.uid, signal });
+  });
+
   // ── Disconnect ──
   socket.on('disconnect', (reason) => {
     console.log(`[DISCONNECT] ${socket.displayName} (${socket.uid}) — ${reason}`);

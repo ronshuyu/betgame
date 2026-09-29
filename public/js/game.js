@@ -8,7 +8,7 @@ const SUIT_COLORS = { hearts: 'red', diamonds: 'red', spades: 'black', clubs: 'b
 
 // 12 seat positions (% of table width/height), seat 0 = south (self)
 const SEAT_POSITIONS = [
-  { x: 50,  y: 112 },  // 0 — south  (self, below table)
+  { x: 50,  y: 82  },  // 0 — south (self)
   { x: 22,  y: 102 },  // 1 — south-west
   { x: 4,   y: 80  },  // 2 — west
   { x: 6,   y: 48  },  // 3 — north-west
@@ -37,6 +37,11 @@ const G = {
   maxRaise:     0,
   timerInterval: null,
   timerTotal:   30,
+  cameraStream: null,
+  micStream: null,
+  peerConnections: new Map(),
+  remoteStreams: new Map(),
+  pendingCandidates: new Map(),
 };
 
 /* ── Socket connection ──────────────────────────────────────────── */
@@ -82,6 +87,7 @@ function connectSocket() {
   G.socket.on('roundResult',        onRoundResult);
   G.socket.on('tableReset',         onTableReset);
   G.socket.on('gameError',          ({ message }) => showToast(message, 'error'));
+  G.socket.on('camera:signal',      onCameraSignal);
 }
 
 /* ── Socket event handlers ──────────────────────────────────────── */
@@ -96,6 +102,9 @@ function onJoinedTable({ tableId, seat, tableState }) {
   G.myCards  = [];
   showGameView();
   renderTableState(tableState);
+  syncCameraPeers(tableState);
+  if (G.cameraStream) G.socket?.emit('camera:state', { enabled: true });
+  if (G.micStream) G.socket?.emit('mic:state', { enabled: true });
   showWaitingRoom(tableState);
   document.getElementById('leave-table-btn').style.display = '';
 }
@@ -103,6 +112,7 @@ function onJoinedTable({ tableId, seat, tableState }) {
 function onTableUpdate(tableState) {
   G.tableState = tableState;
   renderTableState(tableState);
+  syncCameraPeers(tableState);
   if (tableState.phase === 'WAITING') showWaitingRoom(tableState);
 }
 
@@ -209,6 +219,13 @@ window.joinTableById = joinTableById;
 function leaveTable() {
   if (!G.socket) return;
   G.socket.emit('leaveTable');
+  stopCamera();
+  G.micStream?.getTracks().forEach(track => track.stop());
+  G.micStream = null;
+  closeCameraPeers();
+  updateCameraButton(false);
+  cameraStatus('Camera off');
+  updateMicButton(false);
   G.tableId = null;
   G.mySeat  = null;
   G.myCards = [];
@@ -278,8 +295,9 @@ function renderSeats(players, currentPlayerIdx, state) {
 
     const initial = (player.displayName || 'P')[0].toUpperCase();
     const avatarHTML = player.photoURL
-      ? `<img class="seat-avatar" src="${player.photoURL}" alt="${player.displayName}" onerror="this.parentElement.innerHTML='<div class=\\'seat-avatar-fallback\\'>${initial}</div>'">`
+      ? `<img class="seat-avatar" src="${player.photoURL}" alt="${player.displayName}">`
       : `<div class="seat-avatar-fallback">${initial}</div>`;
+    const cameraHTML = `<video class="seat-camera" data-camera-uid="${player.uid}" autoplay playsinline muted></video>`;
 
     const readyBadge = player.isReady && state.phase === 'WAITING'
       ? '<div class="ready-badge">✓</div>' : '';
@@ -287,6 +305,7 @@ function renderSeats(players, currentPlayerIdx, state) {
     seat.innerHTML = `
       <div class="seat-avatar-wrap">
         ${avatarHTML}
+        ${cameraHTML}
         <div class="seat-status-dot ${player.status}"></div>
         ${readyBadge}
       </div>
@@ -298,8 +317,265 @@ function renderSeats(players, currentPlayerIdx, state) {
       ${player.currentBet > 0 ? `<div class="seat-bet">Bet: $${player.currentBet}</div>` : ''}
     `;
 
+    const avatarImage = seat.querySelector('.seat-avatar');
+    avatarImage?.addEventListener('error', () => {
+      const fallback = document.createElement('div');
+      fallback.className = 'seat-avatar-fallback';
+      fallback.textContent = initial;
+      avatarImage.replaceWith(fallback);
+    }, { once: true });
+
     container.appendChild(seat);
   });
+
+  attachCameraVideos(container);
+}
+
+/* ── In-game camera ─────────────────────────────────────────────── */
+
+const CAMERA_PEER_CONFIG = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
+function cameraStatus(message) {
+  const status = document.getElementById('camera-status');
+  if (status) status.textContent = message;
+}
+
+function updateCameraButton(enabled) {
+  const button = document.getElementById('camera-toggle');
+  if (!button) return;
+  button.textContent = enabled ? 'Turn camera off' : 'Enable camera';
+  button.setAttribute('aria-pressed', String(enabled));
+}
+
+function updateMicButton(enabled) {
+  const button = document.getElementById('mic-toggle');
+  if (!button) return;
+  button.textContent = enabled ? 'Mute mic' : 'Enable mic';
+  button.setAttribute('aria-pressed', String(enabled));
+  const status = document.getElementById('mic-status');
+  if (status) status.textContent = enabled ? 'Mic on' : 'Mic off';
+}
+
+async function toggleCamera() {
+  if (G.cameraStream) {
+    stopCamera();
+    if (G.socket) G.socket.emit('camera:state', { enabled: false });
+    updateCameraButton(false);
+    cameraStatus('Camera off');
+    renderTableState(G.tableState);
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast('Camera access requires a secure connection and a supported browser.', 'error');
+    return;
+  }
+
+  const button = document.getElementById('camera-toggle');
+  if (button) button.disabled = true;
+  cameraStatus('Requesting camera…');
+  try {
+    G.cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    updateCameraButton(true);
+    cameraStatus('Camera on');
+    if (G.socket) G.socket.emit('camera:state', { enabled: true });
+    renderTableState(G.tableState);
+    syncCameraPeers(G.tableState);
+    await updatePeerTrack('video', G.cameraStream.getVideoTracks()[0]);
+  } catch (error) {
+    G.cameraStream = null;
+    cameraStatus('Camera off');
+    showToast(error.name === 'NotAllowedError' ? 'Camera permission was denied.' : 'Could not start the camera.', 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function stopCamera() {
+  if (G.cameraStream) {
+    G.cameraStream.getTracks().forEach(track => track.stop());
+    G.cameraStream = null;
+  }
+  updatePeerTrack('video', null).catch(() => {});
+}
+
+async function toggleMic() {
+  if (G.micStream) {
+    G.micStream.getTracks().forEach(track => track.stop());
+    G.micStream = null;
+    await updatePeerTrack('audio', null);
+    G.socket?.emit('mic:state', { enabled: false });
+    updateMicButton(false);
+    syncCameraPeers(G.tableState);
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast('Microphone access requires a secure connection and a supported browser.', 'error');
+    return;
+  }
+
+  const button = document.getElementById('mic-toggle');
+  if (button) button.disabled = true;
+  const status = document.getElementById('mic-status');
+  if (status) status.textContent = 'Requesting mic…';
+  try {
+    G.micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    G.socket?.emit('mic:state', { enabled: true });
+    updateMicButton(true);
+    syncCameraPeers(G.tableState);
+    await updatePeerTrack('audio', G.micStream.getAudioTracks()[0]);
+  } catch (error) {
+    G.micStream?.getTracks().forEach(track => track.stop());
+    G.micStream = null;
+    updateMicButton(false);
+    showToast(error.name === 'NotAllowedError' ? 'Microphone permission was denied.' : 'Could not start the microphone.', 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function updatePeerTrack(kind, track) {
+  await Promise.all([...G.peerConnections.values()].map(connection => {
+    const transceiver = connection.getTransceivers().find(item => item.receiver.track.kind === kind);
+    return transceiver ? transceiver.sender.replaceTrack(track) : Promise.resolve();
+  }));
+}
+
+function closeCameraPeers() {
+  for (const connection of G.peerConnections.values()) connection.close();
+  G.peerConnections.clear();
+  G.remoteStreams.clear();
+  G.pendingCandidates.clear();
+}
+
+function syncCameraPeers(state) {
+  if (!state || !G.socket) return;
+  const myUid = sessionStorage.getItem('betgame_uid');
+  const players = state.players || [];
+  const playersByUid = new Map(players.map(player => [player.uid, player]));
+  for (const [uid, connection] of G.peerConnections) {
+    const player = playersByUid.get(uid);
+    if (!player || (!player.cameraEnabled && !player.micEnabled && !G.cameraStream && !G.micStream)) {
+      connection.close();
+      G.peerConnections.delete(uid);
+      G.remoteStreams.delete(uid);
+      G.pendingCandidates.delete(uid);
+    }
+  }
+  for (const player of players) {
+    if (player.uid === myUid) continue;
+    if (player.cameraEnabled || player.micEnabled || G.cameraStream || G.micStream) {
+      const connection = getCameraPeer(player.uid);
+      if (myUid.localeCompare(player.uid) < 0 && connection.signalingState === 'stable' && !connection.makingOffer) {
+        connection.makingOffer = true;
+        connection.createOffer()
+          .then(offer => connection.setLocalDescription(offer))
+          .then(() => sendCameraSignal(player.uid, { type: 'description', description: connection.localDescription }))
+          .catch(error => console.warn('[Camera] Could not create offer:', error.message))
+          .finally(() => { connection.makingOffer = false; });
+      }
+    }
+  }
+}
+
+function getCameraPeer(uid) {
+  if (G.peerConnections.has(uid)) return G.peerConnections.get(uid);
+  const connection = new RTCPeerConnection(CAMERA_PEER_CONFIG);
+  connection.addTransceiver('video', { direction: 'sendrecv' });
+  connection.addTransceiver('audio', { direction: 'sendrecv' });
+  if (G.cameraStream) {
+    const videoTrack = G.cameraStream.getVideoTracks()[0];
+    connection.getTransceivers().find(item => item.receiver.track.kind === 'video')?.sender.replaceTrack(videoTrack);
+  }
+  if (G.micStream) {
+    const audioTrack = G.micStream.getAudioTracks()[0];
+    connection.getTransceivers().find(item => item.receiver.track.kind === 'audio')?.sender.replaceTrack(audioTrack);
+  }
+  connection.ontrack = event => {
+    const stream = G.remoteStreams.get(uid) || new MediaStream();
+    const incomingTracks = event.streams[0]?.getTracks() || [event.track];
+    incomingTracks.forEach(track => {
+      if (!stream.getTracks().some(existing => existing.id === track.id)) stream.addTrack(track);
+    });
+    G.remoteStreams.set(uid, stream);
+    attachCameraVideo(uid);
+  };
+  connection.onicecandidate = event => {
+    if (event.candidate) sendCameraSignal(uid, { type: 'candidate', candidate: event.candidate });
+  };
+  G.peerConnections.set(uid, connection);
+  return connection;
+}
+
+function sendCameraSignal(toUid, signal) {
+  G.socket?.emit('camera:signal', { toUid, signal });
+}
+
+async function onCameraSignal({ fromUid, signal }) {
+  if (!fromUid || !signal) return;
+  const connection = getCameraPeer(fromUid);
+  try {
+    if (signal.type === 'description' && signal.description) {
+      await connection.setRemoteDescription(signal.description);
+      await applyPendingCandidates(fromUid, connection);
+      if (signal.description.type === 'offer') {
+        const answer = await connection.createAnswer();
+        await connection.setLocalDescription(answer);
+        sendCameraSignal(fromUid, { type: 'description', description: connection.localDescription });
+      }
+    } else if (signal.type === 'candidate' && signal.candidate) {
+      if (connection.remoteDescription) {
+        await connection.addIceCandidate(signal.candidate);
+      } else {
+        const candidates = G.pendingCandidates.get(fromUid) || [];
+        candidates.push(signal.candidate);
+        G.pendingCandidates.set(fromUid, candidates);
+      }
+    }
+  } catch (error) {
+    console.warn('[Camera] Signaling failed:', error.message);
+  }
+}
+
+async function applyPendingCandidates(uid, connection) {
+  const candidates = G.pendingCandidates.get(uid) || [];
+  G.pendingCandidates.delete(uid);
+  for (const candidate of candidates) await connection.addIceCandidate(candidate);
+}
+
+function attachCameraVideos(container = document) {
+  container.querySelectorAll('video[data-camera-uid]').forEach(video => {
+    video.addEventListener('playing', () => video.classList.toggle('is-live', video.videoWidth > 0));
+    video.addEventListener('loadeddata', () => video.classList.toggle('is-live', video.videoWidth > 0));
+    video.addEventListener('pause', () => video.classList.remove('is-live'));
+    video.addEventListener('error', () => video.classList.remove('is-live'));
+    const uid = video.dataset.cameraUid;
+    const stream = uid === sessionStorage.getItem('betgame_uid')
+      ? G.cameraStream
+      : G.remoteStreams.get(uid);
+    if (stream && video.srcObject !== stream) {
+      video.srcObject = stream;
+      video.muted = uid === sessionStorage.getItem('betgame_uid');
+      video.play().catch(() => {});
+    }
+  });
+}
+
+function attachCameraVideo(uid) {
+  const video = document.querySelector(`video[data-camera-uid="${CSS.escape(uid)}"]`);
+  const stream = G.remoteStreams.get(uid);
+  if (video && stream) {
+    video.addEventListener('playing', () => video.classList.toggle('is-live', video.videoWidth > 0));
+    video.addEventListener('loadeddata', () => video.classList.toggle('is-live', video.videoWidth > 0));
+    video.addEventListener('pause', () => video.classList.remove('is-live'));
+    video.addEventListener('error', () => video.classList.remove('is-live'));
+    video.srcObject = stream;
+    video.muted = uid === sessionStorage.getItem('betgame_uid');
+    video.play().catch(() => {});
+  }
 }
 
 function renderSeatCards(player, isSelf, state) {
@@ -657,6 +933,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Leave table button
   document.getElementById('leave-table-btn')?.addEventListener('click', leaveTable);
+  document.getElementById('camera-toggle')?.addEventListener('click', toggleCamera);
+  document.getElementById('mic-toggle')?.addEventListener('click', toggleMic);
 
   // Ready button
   document.getElementById('ready-btn')?.addEventListener('click', () => {

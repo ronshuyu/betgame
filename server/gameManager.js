@@ -99,6 +99,8 @@ class GameManager {
         uid:        p.uid,
         displayName: p.displayName,
         photoURL:   p.photoURL,
+        cameraEnabled: p.cameraEnabled || false,
+        micEnabled: p.micEnabled || false,
         credits:    p.credits,
         seat:       p.seat,
         status:     p.status,
@@ -151,7 +153,7 @@ class GameManager {
     let seat = 0;
     while (usedSeats.has(seat)) seat++;
 
-    t.players.push({ uid, displayName, photoURL, credits, seat, status: 'waiting', isReady: false, socketId: socket.id });
+    t.players.push({ uid, displayName, photoURL, credits, seat, status: 'waiting', isReady: false, cameraEnabled: false, micEnabled: false, socketId: socket.id });
     this.playerTableMap[uid] = tableId;
     socket.join(tableId);
 
@@ -194,6 +196,26 @@ class GameManager {
     if (!tableId) return;
     const p = this.tables[tableId].players.find(p => p.uid === uid);
     if (p) p.socketId = socketId;
+  }
+
+  setCameraState(uid, enabled) {
+    const tableId = this.playerTableMap[uid];
+    if (!tableId) return;
+    const table = this.tables[tableId];
+    const player = table?.players.find(item => item.uid === uid);
+    if (!player) return;
+    player.cameraEnabled = Boolean(enabled);
+    this.io.to(tableId).emit('tableUpdate', this.getPublicTableState(tableId));
+  }
+
+  setMicState(uid, enabled) {
+    const tableId = this.playerTableMap[uid];
+    if (!tableId) return;
+    const table = this.tables[tableId];
+    const player = table?.players.find(item => item.uid === uid);
+    if (!player) return;
+    player.micEnabled = Boolean(enabled);
+    this.io.to(tableId).emit('tableUpdate', this.getPublicTableState(tableId));
   }
 
   // ── Ready / Countdown ────────────────────────────────────────────────────────
