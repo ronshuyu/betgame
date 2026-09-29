@@ -16,8 +16,8 @@ const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
-  pingTimeout: 20_000,
-  pingInterval: 10_000,
+  pingTimeout: 60_000,
+  pingInterval: 25_000,
 });
 
 app.use(cors());
