@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BETGAME — Play</title>
   <meta name="description" content="BETGAME — Multiplayer card game lobby and table"/>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>"/>
+  <link rel="icon" href="/favicon.svg"/>
   <link rel="stylesheet" href="/css/style.css"/>
 </head>
 <body>
@@ -14,18 +14,18 @@
 
   <!-- ══════════════════════════ TOP HUD ════════════════════════════ -->
   <header class="hud">
-    <div class="hud-logo">🃏 BETGAME</div>
+    <div class="hud-logo"><span class="brand-mark">BG</span><span>BETGAME</span></div>
     <div class="hud-spacer"></div>
 
     <!-- Stats -->
     <div class="hud-stats" id="hud-stats">
-      <div class="stat">🏆 <span class="wins" id="hud-wins">0</span> W</div>
-      <div class="stat">💀 <span class="losses" id="hud-losses">0</span> L</div>
+      <div class="stat"><span class="stat-label">W</span><span class="wins" id="hud-wins">0</span></div>
+      <div class="stat"><span class="stat-label">L</span><span class="losses" id="hud-losses">0</span></div>
     </div>
 
     <!-- Credits -->
     <div class="hud-credits">
-      <span class="credits-icon">💰</span>
+      <span class="credits-icon">$</span>
       <span class="credits-val" id="hud-credits">500</span>
     </div>
 
@@ -36,9 +36,9 @@
     <div class="hud-name" id="hud-name">Player</div>
 
     <!-- Actions -->
-    <button class="btn btn-outline btn-sm" id="topup-btn" title="Add $100 credits">💳 Top Up</button>
-    <button class="btn btn-outline btn-sm" id="leave-table-btn" style="display:none">← Leave</button>
-    <button class="btn btn-outline btn-sm" id="signout-btn">Sign Out</button>
+    <button class="btn btn-outline btn-sm" id="topup-btn" title="Add $100 credits">Top up</button>
+    <button class="btn btn-outline btn-sm" id="leave-table-btn" style="display:none">Leave table</button>
+    <button class="btn btn-outline btn-sm" id="signout-btn">Sign out</button>
   </header>
 
   <!-- ══════════════════════════ MAIN ═══════════════════════════════ -->
@@ -47,8 +47,9 @@
     <!-- ───────────────── LOBBY VIEW ───────────────── -->
     <section id="lobby-view">
       <div class="lobby-header">
-        <h1>Choose Your Table</h1>
-        <p>Select a stake level and join the action</p>
+        <div class="eyebrow">Three tables / one seat for you</div>
+        <h1>Choose your table.</h1>
+        <p>Pick your stakes. Make your move.</p>
       </div>
 
       <div class="tables-grid" id="tables-grid">
@@ -56,7 +57,7 @@
       </div>
 
       <div class="lobby-actions">
-        <button class="btn btn-gold btn-lg" id="topup-lobby-btn">💳 Top Up Credits</button>
+        <button class="btn btn-gold btn-lg" id="topup-lobby-btn">Add credits</button>
       </div>
     </section>
 
@@ -66,6 +67,7 @@
       <div class="table-arena">
 
         <div class="camera-controls">
+          <button class="btn btn-outline btn-sm hidden" id="remote-audio-toggle" type="button" aria-pressed="false">Hear players</button>
           <button class="btn btn-outline btn-sm" id="camera-toggle" type="button" aria-pressed="false">Enable camera</button>
           <span id="camera-status" role="status">Camera off</span>
           <button class="btn btn-outline btn-sm" id="mic-toggle" type="button" aria-pressed="false">Enable mic</button>
@@ -77,7 +79,7 @@
 
           <!-- Pot display -->
           <div class="pot-display" id="pot-display">
-            <div class="pot-chips">🪙</div>
+            <div class="pot-chips">POT</div>
             <div class="pot-label">Pot</div>
             <div class="pot-amount" id="pot-amount">$0</div>
           </div>
@@ -99,7 +101,7 @@
             Waiting for players…
             <strong id="waiting-count">0/2</strong> ready
           </span>
-          <button class="btn btn-green" id="ready-btn">✓ Ready</button>
+          <button class="btn btn-green" id="ready-btn">Ready</button>
         </div>
 
       </div>
@@ -153,7 +155,7 @@
 <!-- Top-up modal -->
 <div class="modal-backdrop hidden" id="topup-modal">
   <div class="modal-box">
-    <div class="modal-title">💳 Top Up Credits</div>
+    <div class="modal-title">Add credits</div>
     <div class="modal-desc" id="topup-modal-desc">
       Add <strong>$100</strong> to your account. You can top up up to <strong>3 times per day</strong>.
     </div>

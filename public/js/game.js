@@ -10,14 +10,14 @@ const SUIT_COLORS = { hearts: 'red', diamonds: 'red', spades: 'black', clubs: 'b
 const SEAT_POSITIONS = [
   { x: 50,  y: 82  },  // 0 — south (self)
   { x: 22,  y: 102 },  // 1 — south-west
-  { x: 4,   y: 80  },  // 2 — west
-  { x: 6,   y: 48  },  // 3 — north-west
+  { x: 10,  y: 80  },  // 2 — west
+  { x: 12,  y: 48  },  // 3 — north-west
   { x: 18,  y: 20  },  // 4 — north-north-west
   { x: 38,  y: 6   },  // 5 — north
   { x: 62,  y: 6   },  // 6 — north
   { x: 82,  y: 20  },  // 7 — north-north-east
-  { x: 94,  y: 48  },  // 8 — north-east
-  { x: 96,  y: 80  },  // 9 — east
+  { x: 88,  y: 48  },  // 8 — north-east
+  { x: 90,  y: 80  },  // 9 — east
   { x: 78,  y: 102 },  // 10 — south-east
   { x: 50,  y: 116 },  // 11 — south (extra)
 ];
@@ -41,6 +41,8 @@ const G = {
   micStream: null,
   peerConnections: new Map(),
   remoteStreams: new Map(),
+  remoteAudioElements: new Map(),
+  remoteAudioEnabled: false,
   pendingCandidates: new Map(),
 };
 
@@ -117,7 +119,7 @@ function onTableUpdate(tableState) {
 }
 
 function onGameStarted({ playerCount }) {
-  showToast(`🎮 Game starting with ${playerCount} players!`, 'info');
+  showToast(`Game starting with ${playerCount} players.`, 'info');
   hideWaitingRoom();
   setActionPhase('DEALING', 'Dealing cards…');
 }
@@ -148,7 +150,7 @@ function onPlayerTurn({ uid, timeLimit, toCall, canCheck, canRaise }) {
   if (uid !== myUid) {
     // Another player's turn — show in UI
     const player = G.tableState?.players?.find(p => p.uid === uid);
-    if (player) setActionContext(`⏳ ${player.displayName}'s turn…`);
+    if (player) setActionContext(`${player.displayName}'s turn…`);
     highlightActiveSeat(uid);
   }
 }
@@ -163,7 +165,7 @@ function onYourTurn({ timeLimit, currentBet, toCall, canCheck, canRaise, minRais
 
   showActionButtons(toCall, canCheck, canRaise, minRaise, maxRaise);
   startTurnTimer(timeLimit);
-  showToast('🎯 Your turn!', 'gold', 2000);
+  showToast('Your turn.', 'gold', 2000);
 }
 
 function onPlayerAction({ uid, displayName, action, amount, message }) {
@@ -226,6 +228,7 @@ function leaveTable() {
   updateCameraButton(false);
   cameraStatus('Camera off');
   updateMicButton(false);
+  setRemoteAudioEnabled(false);
   G.tableId = null;
   G.mySeat  = null;
   G.myCards = [];
@@ -444,11 +447,41 @@ async function updatePeerTrack(kind, track) {
   }));
 }
 
+function setRemoteAudioEnabled(enabled) {
+  G.remoteAudioEnabled = enabled;
+  for (const audio of G.remoteAudioElements.values()) {
+    audio.muted = !enabled;
+    if (enabled) audio.play().catch(() => {});
+  }
+  const button = document.getElementById('remote-audio-toggle');
+  if (button) {
+    button.textContent = enabled ? 'Mute players' : 'Hear players';
+    button.setAttribute('aria-pressed', String(enabled));
+  }
+}
+
+function removeRemoteAudio(uid) {
+  const audio = G.remoteAudioElements.get(uid);
+  if (audio) {
+    audio.pause();
+    audio.srcObject = null;
+    audio.remove();
+    G.remoteAudioElements.delete(uid);
+  }
+  const button = document.getElementById('remote-audio-toggle');
+  if (button && G.remoteAudioElements.size === 0) {
+    button.classList.add('hidden');
+    setRemoteAudioEnabled(false);
+  }
+}
+
 function closeCameraPeers() {
   for (const connection of G.peerConnections.values()) connection.close();
+  for (const uid of G.remoteAudioElements.keys()) removeRemoteAudio(uid);
   G.peerConnections.clear();
   G.remoteStreams.clear();
   G.pendingCandidates.clear();
+  setRemoteAudioEnabled(false);
 }
 
 function syncCameraPeers(state) {
@@ -462,6 +495,7 @@ function syncCameraPeers(state) {
       connection.close();
       G.peerConnections.delete(uid);
       G.remoteStreams.delete(uid);
+      removeRemoteAudio(uid);
       G.pendingCandidates.delete(uid);
     }
   }
@@ -556,9 +590,11 @@ function attachCameraVideos(container = document) {
     const stream = uid === sessionStorage.getItem('betgame_uid')
       ? G.cameraStream
       : G.remoteStreams.get(uid);
-    if (stream && video.srcObject !== stream) {
-      video.srcObject = stream;
-      video.muted = uid === sessionStorage.getItem('betgame_uid');
+    if (uid !== sessionStorage.getItem('betgame_uid')) {
+      attachCameraVideo(uid);
+    } else if (stream && video.srcObject !== stream) {
+      video.srcObject = new MediaStream(stream.getVideoTracks());
+      video.muted = true;
       video.play().catch(() => {});
     }
   });
@@ -567,15 +603,37 @@ function attachCameraVideos(container = document) {
 function attachCameraVideo(uid) {
   const video = document.querySelector(`video[data-camera-uid="${CSS.escape(uid)}"]`);
   const stream = G.remoteStreams.get(uid);
-  if (video && stream) {
+  if (video && stream?.getVideoTracks().length) {
     video.addEventListener('playing', () => video.classList.toggle('is-live', video.videoWidth > 0));
     video.addEventListener('loadeddata', () => video.classList.toggle('is-live', video.videoWidth > 0));
     video.addEventListener('pause', () => video.classList.remove('is-live'));
     video.addEventListener('error', () => video.classList.remove('is-live'));
-    video.srcObject = stream;
-    video.muted = uid === sessionStorage.getItem('betgame_uid');
+    video.srcObject = new MediaStream(stream.getVideoTracks());
+    video.muted = true;
     video.play().catch(() => {});
   }
+  attachRemoteAudio(uid, stream);
+}
+
+function attachRemoteAudio(uid, stream) {
+  const audioTracks = stream?.getAudioTracks() || [];
+  if (audioTracks.length === 0) return;
+
+  let audio = G.remoteAudioElements.get(uid);
+  if (!audio) {
+    audio = document.createElement('audio');
+    audio.autoplay = true;
+    audio.playsInline = true;
+    audio.dataset.remoteAudioUid = uid;
+    document.body.appendChild(audio);
+    G.remoteAudioElements.set(uid, audio);
+  }
+
+  audio.srcObject = new MediaStream(audioTracks);
+  audio.muted = !G.remoteAudioEnabled;
+  const button = document.getElementById('remote-audio-toggle');
+  button?.classList.remove('hidden');
+  audio.play().catch(() => {});
 }
 
 function renderSeatCards(player, isSelf, state) {
@@ -886,12 +944,12 @@ function showWinnerOverlay(winners, winnerNames, pot, results, earlyEnd) {
   }
 
   card.innerHTML = `
-    <div class="winner-crown">${iWon ? '👑' : '🃏'}</div>
+    <div class="winner-crown">${iWon ? 'WINNER' : 'RESULT'}</div>
     <div class="winner-title">${earlyEnd ? 'Round Over' : 'Showdown!'}</div>
     <div class="winner-name">${name} wins!</div>
     ${handDisplay}
-    <div class="winner-prize">🏆 +$${pot}</div>
-    ${iWon ? '<div style="color:var(--success);font-size:1rem;margin-top:.5rem">You won this round! 🎉</div>' : `<div style="color:var(--text-muted);font-size:0.88rem;margin-top:.5rem">Better luck next round!</div>`}
+    <div class="winner-prize">+$${pot}</div>
+    ${iWon ? '<div style="color:var(--success);font-size:1rem;margin-top:.5rem">You won this round.</div>' : `<div style="color:var(--text-muted);font-size:0.88rem;margin-top:.5rem">Better luck next round.</div>`}
     <div style="margin-top:1.5rem">
       ${results?.map(r => `
         <div class="result-row ${r.isWinner ? 'winner-row' : ''} ${r.hand?.length === 0 ? 'folded-row' : ''}">
@@ -935,6 +993,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('leave-table-btn')?.addEventListener('click', leaveTable);
   document.getElementById('camera-toggle')?.addEventListener('click', toggleCamera);
   document.getElementById('mic-toggle')?.addEventListener('click', toggleMic);
+  document.getElementById('remote-audio-toggle')?.addEventListener('click', () => {
+    setRemoteAudioEnabled(!G.remoteAudioEnabled);
+  });
 
   // Ready button
   document.getElementById('ready-btn')?.addEventListener('click', () => {

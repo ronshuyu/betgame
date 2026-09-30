@@ -75,15 +75,18 @@ function renderTables(tables) {
     const statusClass  = inProgress ? 'in-progress' : 'waiting';
 
     return `
-      <div class="table-card" style="--table-color: ${t.color}">
+      <div class="table-card">
+        <div class="table-card-top">
+          <span class="table-card-index">TABLE / 0${t.id.slice(-1)}</span>
+          <span class="table-status-badge ${statusClass}">${statusLabel}</span>
+        </div>
         <div class="table-card-name">${t.name}</div>
-        <div class="table-card-stake">$${t.baseBet} <span>base bet</span></div>
+        <div class="table-card-stake">$${t.baseBet} <span>entry bet</span></div>
         <div class="table-card-meta">
           <div class="player-count-pill">
             <span class="dot ${countClass}"></span>
-            ${t.playerCount} / ${t.maxPlayers} players
+            ${t.playerCount} / ${t.maxPlayers} seats
           </div>
-          <span class="table-status-badge ${statusClass}">${statusLabel}</span>
         </div>
         <button
           class="btn btn-green w-full"
@@ -91,7 +94,7 @@ function renderTables(tables) {
           onclick="window.joinTableById('${t.id}')"
           id="join-btn-${t.id}"
         >
-          ${isFull ? '🔒 Full' : inProgress ? '⏳ In Progress' : '→ Join Table'}
+          ${isFull ? 'Table full' : inProgress ? 'Round in progress' : 'Take a seat'}
         </button>
       </div>
     `;
