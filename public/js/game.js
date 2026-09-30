@@ -448,15 +448,17 @@ async function updatePeerTrack(kind, track) {
 }
 
 function setRemoteAudioEnabled(enabled) {
-  G.remoteAudioEnabled = enabled;
+  G.remoteAudioEnabled = enabled && G.remoteAudioElements.size > 0;
   for (const audio of G.remoteAudioElements.values()) {
-    audio.muted = !enabled;
-    if (enabled) audio.play().catch(() => {});
+    audio.muted = !G.remoteAudioEnabled;
+    if (G.remoteAudioEnabled) audio.play().catch(error => console.warn('[Media] Remote audio playback blocked:', error.name));
   }
   const button = document.getElementById('remote-audio-toggle');
   if (button) {
-    button.textContent = enabled ? 'Mute players' : 'Hear players';
-    button.setAttribute('aria-pressed', String(enabled));
+    button.disabled = G.remoteAudioElements.size === 0;
+    button.title = button.disabled ? 'Waiting for a player microphone' : '';
+    button.textContent = G.remoteAudioEnabled ? 'Mute players' : 'Hear players';
+    button.setAttribute('aria-pressed', String(G.remoteAudioEnabled));
   }
 }
 
@@ -470,7 +472,6 @@ function removeRemoteAudio(uid) {
   }
   const button = document.getElementById('remote-audio-toggle');
   if (button && G.remoteAudioElements.size === 0) {
-    button.classList.add('hidden');
     setRemoteAudioEnabled(false);
   }
 }
@@ -529,6 +530,7 @@ function getCameraPeer(uid) {
     connection.getTransceivers().find(item => item.receiver.track.kind === 'audio')?.sender.replaceTrack(audioTrack);
   }
   connection.ontrack = event => {
+    console.info(`[Media] Received ${event.track.kind} track from ${uid} (${event.track.readyState}).`);
     const stream = G.remoteStreams.get(uid) || new MediaStream();
     const incomingTracks = event.streams[0]?.getTracks() || [event.track];
     incomingTracks.forEach(track => {
@@ -539,6 +541,12 @@ function getCameraPeer(uid) {
   };
   connection.onicecandidate = event => {
     if (event.candidate) sendCameraSignal(uid, { type: 'candidate', candidate: event.candidate });
+  };
+  connection.oniceconnectionstatechange = () => {
+    console.info(`[Media] ICE ${uid}: ${connection.iceConnectionState}.`);
+  };
+  connection.onconnectionstatechange = () => {
+    console.info(`[Media] Peer ${uid}: ${connection.connectionState}.`);
   };
   G.peerConnections.set(uid, connection);
   return connection;
@@ -632,7 +640,10 @@ function attachRemoteAudio(uid, stream) {
   audio.srcObject = new MediaStream(audioTracks);
   audio.muted = !G.remoteAudioEnabled;
   const button = document.getElementById('remote-audio-toggle');
-  button?.classList.remove('hidden');
+  if (button) {
+    button.disabled = false;
+    button.title = '';
+  }
   audio.play().catch(() => {});
 }
 
