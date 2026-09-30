@@ -167,12 +167,16 @@ class GameManager {
     if (!tableId) return;
     const t = this.tables[tableId];
     if (!t) return;
+    const player = t.players.find(item => item.uid === uid);
+    if (player && player.socketId !== socket.id) {
+      socket.leave(tableId);
+      return;
+    }
 
     // If mid-game, treat as fold
     if (t.phase === PHASE.BETTING) {
-      const p = t.players.find(p => p.uid === uid);
-      if (p && p.status === 'active') {
-        p.status = 'folded';
+      if (player && player.status === 'active') {
+        player.status = 'folded';
         this._checkBettingComplete(tableId);
       }
     }
@@ -194,8 +198,15 @@ class GameManager {
   updatePlayerSocket(uid, socketId) {
     const tableId = this.playerTableMap[uid];
     if (!tableId) return;
-    const p = this.tables[tableId].players.find(p => p.uid === uid);
-    if (p) p.socketId = socketId;
+    const player = this.tables[tableId].players.find(item => item.uid === uid);
+    if (!player || player.socketId === socketId) return;
+
+    const previousSocket = this._getSocket(player.socketId);
+    player.socketId = socketId;
+    if (previousSocket) {
+      previousSocket.leave(tableId);
+      previousSocket.disconnect(true);
+    }
   }
 
   setCameraState(uid, enabled) {
